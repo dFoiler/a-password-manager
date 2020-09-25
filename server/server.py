@@ -46,7 +46,7 @@ class Server:
 		username = username.strip()
 		# Test if username is printable
 		if any(c not in string.printable for c in username):
-			return False
+			raise Exception('client gave invalid username')
 		# Is this a new user?
 		if username in self.user_tokens:
 			print('[ Found user ]')
@@ -65,39 +65,58 @@ class Server:
 			client.sendall(hex(self.token)[2:].encode())
 		return username
 	
-	def authenticate(self, client):
-		# Very secure
-		return True
+	def authenticate(self, client, token):
+		# Client proves first
+		print('[ Verifying client ]')
+		verifier = Verifier(client,token)
+		check = verifier.run(256)
+		# Server proves second
+		print('[ Verifying server ]')
+		prover = Prover(client, self.secret)
+		prover.run(256)
+		# Run checks
+		if check:
+			client.sendall(b'Authenticated.')
+		else:
+			client.sendall(b'Failed.')
+		self_check = client.recv(4096).strip()
+		self_check = (self_check == b'Authenticated.')
+		# Failure
+		if not check or not self_check:
+			client.close()
+			raise Exception('client failed authentication')
+		return check and self_check
+	
+	def run_client(self, client, addr):
+		# Check the username
+		username = self.get_username(client)
+		print(addr[0], 'is', username)
+		# Run the authentication protocol
+		user_token = int(self.user_tokens[username], 16)
+		print('[ Authenticating', addr[0], ']')
+		authenticated = self.authenticate(client, user_token)
+		print('[ Running ]')
+		# Run cat to show that we're done
+		while True:
+			data = client.recv(4096)
+			if not data:
+				break
+			client.sendall(data)
 	
 	def run(self):
 		print('[ Running ]')
 		while True:
-			# Accept new user
+			# Accept client
 			client, addr = self.server.accept()
 			print('[ Connected to', addr[0], ']')
-			# CHeck the username
-			username = self.get_username(client)
-			if not username:
-				print('[', addr[0], 'gave invalid username ]')
-				print('[ Closing ]')
-				client.sendall(b'Closing.')
-				client.close()
-				continue
-			print(addr[0], 'is', username)
-			# Run the authentication protocol
-			authenticated = self.authenticate(client)
-			if not authenticated:
-				print('[', addr[0], 'failed authentification ]')
-				print('[ Closing ]')
-				client.sendall(b'Closing.')
-				client.close()
-				continue
-			# Run cat to show that we're done
-			while True:
-				data = client.recv(4096)
-				if not data:
-					break
-				client.sendall(data)
+			# This server should never crash
+			try:
+				self.run_client(client, addr)
+			except KeyboardInterrupt:
+				# Ok, if you said to die, we'll die
+				exit()
+			except Exception as e:
+				print('[ Error with',addr[0],':',e,']')
 			print('[ Closing ]')
 			client.close()
 

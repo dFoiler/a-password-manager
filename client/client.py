@@ -32,19 +32,7 @@ class Client:
 			f.close()
 			self.server_tokens[host] = '-1'
 		self.server_token = int(self.server_tokens[host], 16)
-		# Get own secret
-		try:
-			f = open('secret.txt','r')
-			self.secret = json.load(f)
-			f.close()
-			self.secret = int(self.secret['secret'], 16)
-		except FileNotFoundError:
-			f = open('secret.txt','w')
-			self.secret = binascii.hexlify(os.urandom(256)).decode()
-			f.write(json.dumps({'secret':self.secret}))
-			self.secret = int(self.secret, 16)
-		self.token = pow(g, self.secret, p)
-	
+
 	def send_username(self):
 		# TODO: Do something about repeat usernames
 		# Prompt for username
@@ -58,6 +46,24 @@ class Client:
 			else:
 				break
 		username = username.strip()
+		# Get own secret now that we know our username :/
+		try:
+			f = open('secrets.txt','r')
+			self.secret = json.load(f)
+			f.close()
+			self.secret = int(self.secret[username], 16)
+		except FileNotFoundError:
+			f = open('secrets.txt','w')
+			secret = binascii.hexlify(os.urandom(256)).decode()
+			f.write(json.dumps({username:self.secret}))
+			self.secret = int(secret, 16)
+		except KeyError:
+			f = open('secrets.txt','w')
+			secret = binascii.hexlify(os.urandom(256)).decode()
+			self.secret[username] = secret
+			f.write(json.dumps(self.secret))
+			self.secret = int(secret, 16)
+		self.token = pow(g, self.secret, p)
 		print('[ Sending username "' + username + '" to server ]')
 		self.server.sendall(username.encode())
 		response = self.server.recv(4096)
@@ -77,11 +83,32 @@ class Client:
 		return username
 	
 	def authenticate(self):
-		# Very secure
-		return True
+		# Client proves first
+		print('[ Verifying client ]')
+		prover = Prover(self.server, secret=self.secret)
+		prover.run(256)
+		# Server proves second
+		print('[ Verifying server ]')
+		verifier = Verifier(self.server, self.server_token)
+		check = verifier.run(256)
+		self_check = self.server.recv(4096).strip()
+		self_check = (self_check == b'Authenticated.')
+		if self_check:
+			print('[ Verfifed client ]')
+		if check:
+			self.server.sendall(b'Authenticated.')
+			print('[ Verified server ]')
+		else:
+			self.server.sendall(b'Failed.')
+		return check and self_check
 	
 	def run(self):
 		username = self.send_username()
+		print('[ Authenticating ]')
+		authenticated = self.authenticate()
+		if not authenticated:
+			raise Exception('Failed authentication')
+		print('[ Running ]')
 		# Run cat to show that we're done
 		while True:
 			self.server.sendall(input('Input: ').encode())

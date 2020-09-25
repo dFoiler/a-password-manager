@@ -35,6 +35,8 @@ class Prover:
 		self.secret = secret
 		self.token = pow(g, self.secret, p)
 		self.verifier = verifier
+		# This is kind of an annoying thing
+		assert isinstance(self.secret, int)
 	
 	def round(self):
 		# Generate random number
@@ -55,8 +57,10 @@ class Prover:
 		self.verifier.sendall(hex(evidence)[2:].encode())
 	
 	def run(self, rounds):
-		for _ in range(rounds):
+		for r in range(rounds):
+			print('[ Round', r, ']\033[F')
 			self.round()
+		print('[ Finished rounds ]')
 
 class Verifier:
 	# verifier is a socket
@@ -64,6 +68,8 @@ class Verifier:
 	def __init__(self, prover, token):
 		self.prover = prover
 		self.token = token
+		# This is kind of an annoying thing
+		assert isinstance(self.token, int)
 	
 	# choice = b'r' means send r, choice = b'x' means send (x+r) % (p-1)
 	def round(self, choice):
@@ -90,5 +96,5 @@ class Verifier:
 			ret = self.round(choice) and ret
 			# Even if the other side has failed, we don't want them to know
 			# The check should be indistuishible, so we do all checks
-		print()
+		print('[ Finished rounds ]')
 		return ret

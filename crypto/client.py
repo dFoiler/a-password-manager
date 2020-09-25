@@ -18,8 +18,8 @@ print('[ Setting up ZKP]')
 # Server will prove to client
 # Set up with no secret
 token = int(client_connection.recv(4096).strip(), 16)
-#verifier = Verifier(client_connection, token)
-verifier = Verifier(client_connection, token+1)
+verifier = Verifier(client_connection, token)
+#verifier = Verifier(client_connection, token+1)
 
 print('[ Begin ZKP ]')
 check = verifier.run(256)
