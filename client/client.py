@@ -102,6 +102,32 @@ class Client:
 			self.server.sendall(b'Failed.')
 		return check and self_check
 	
+	def run_pwds(self):
+		assert self.server.recv(4096) == b'Ready.'
+		choice = ''
+		while choice != 'r' and choice != 's':
+			choice = input('[R]etrieve or [S]tore?\n').lower()[0]
+		if choice == 'r':
+			print('[ Retrieving ]')
+		elif choice == 's':
+			print('[ Storing ]')
+		else:
+			raise Exception('What did you do?')
+		self.server.sendall(choice.encode())
+		assert self.server.recv(4096) == b'Which?'
+		which = input('Which password?\n').strip()
+		self.server.sendall(which.encode())
+		if choice == 'r':
+			pwd = self.server.recv(4096).decode()
+			print('Password:', pwd)
+		elif choice == 's':
+			assert self.server.recv(4096) == b'To?'
+			replacement = input('What are you storing?\n')
+			self.server.sendall(replacement.encode())
+			print('[ Sent password ]')
+		else:
+			raise Exception('What did you do?')
+	
 	def run(self):
 		username = self.send_username()
 		print('[ Authenticating ]')
@@ -111,8 +137,8 @@ class Client:
 		print('[ Running ]')
 		# Run cat to show that we're done
 		while True:
-			self.server.sendall(input('Input: ').encode())
-			print('Server:', unwrap(self.server.recv(4096)))
+			self.run_pwds()
 
-client = Client(host, port)
-client.run()
+if __name__ == "__main__":
+	client = Client(host, port)
+	client.run()

@@ -36,8 +36,19 @@ class Server:
 			f = open('secret.txt','w')
 			self.secret = binascii.hexlify(os.urandom(256)).decode()
 			f.write(json.dumps({'secret':self.secret}))
+			f.close()
 			self.secret = int(self.secret, 16)
 		self.token = pow(g, self.secret, p)
+		# Get user passwords
+		try:
+			f = open('client_pwds.txt','r')
+			self.user_pwds = json.load(f)
+			f.close()
+		except FileNotFoundError:
+			f = open('client_pwds.txt','w')
+			self.user_pwds = {}
+			f.write(json.dumps(self.user_pwds))
+			f.close()
 	
 	def get_username(self, client):
 		# Receive username
@@ -63,6 +74,12 @@ class Server:
 				f.close()
 			# Send our token
 			client.sendall(hex(self.token)[2:].encode())
+		# Check if the username has passwords
+		if username not in self.user_pwds:
+			self.user_pwds[username] = {}
+			with open('client_pwds.txt','w') as f:
+				f.write(json.dumps(self.user_pwds))
+				f.close()
 		return username
 	
 	def authenticate(self, client, token):
@@ -87,6 +104,30 @@ class Server:
 			raise Exception('client failed authentication')
 		return check and self_check
 	
+	def run_pwds(self, client, username):
+		client.sendall(b'Ready.')
+		choice = client.recv(4096).decode()
+		client.sendall(b'Which?')
+		which = client.recv(4096).decode()
+		# Retrieve
+		if choice == 'r':
+			print('[ Retrieving',which,']')
+			if which in self.user_pwds[username]:
+				client.sendall(self.user_pwds[username][which].encode())
+			else:
+				client.sendall(b'[ Password not found ]')
+		# Store
+		elif choice == 's':
+			print('[ Storing to',which,']')
+			client.sendall(b'To?')
+			replacement = client.recv(4096).decode()
+			self.user_pwds[username][which] = replacement
+			with open('client_pwds.txt','w') as f:
+				f.write(json.dumps(self.user_pwds))
+				f.close()
+		else:
+			client.sendall(b'Invalid.')
+
 	def run_client(self, client, addr):
 		# Check the username
 		username = self.get_username(client)
@@ -98,10 +139,7 @@ class Server:
 		print('[ Running ]')
 		# Run cat to show that we're done
 		while True:
-			data = client.recv(4096)
-			if not data:
-				break
-			client.sendall(data)
+			self.run_pwds(client, username)
 	
 	def run(self):
 		print('[ Running ]')
