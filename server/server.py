@@ -3,12 +3,17 @@
 host = 'localhost'
 port = 373
 
-import socket		# socket
-import string		# printable
-import os		# urandom
-import json		# load, dumps
-import binascii 	# hexlify
-from zkp import *	# authentication
+
+import binascii 		# hexlify
+import json			# load, dumps
+import os			# urandom
+import socket			# socket
+import string			# printable
+
+# local imports
+import sys
+sys.path.append('..')
+from crypto.zkp import *	# authentication
 
 class Server:
 	def __init__(self, host, port, queuelength=5):
@@ -127,6 +132,7 @@ class Server:
 				f.close()
 		else:
 			client.sendall(b'Invalid.')
+		assert client.recv(4096) == b'Done.'
 
 	def run_client(self, client, addr):
 		# Check the username
@@ -144,14 +150,15 @@ class Server:
 	def run(self):
 		print('[ Running ]')
 		while True:
-			# Accept client
-			client, addr = self.server.accept()
-			print('[ Connected to', addr[0], ']')
-			# This server should never crash
 			try:
+				# Accept client
+				client, addr = self.server.accept()
+				print('[ Connected to', addr[0], ']')
+				# This server should never crash
 				self.run_client(client, addr)
 			except KeyboardInterrupt:
 				# Ok, if you said to die, we'll die
+				print('[ Exiting ]')
 				exit()
 			except Exception as e:
 				print('[ Error with',addr[0],':',e,']')

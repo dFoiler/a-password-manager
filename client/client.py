@@ -3,12 +3,16 @@
 host = 'localhost'
 port = 373
 
-import json		# loads, dumps
-import socket		# socket
-import string		# printable
-import os		# urandom
-import binascii		# hexlify
-from zkp import *	# authentication
+import binascii			# hexlify
+import json			# loads, dumps
+import os			# urandom
+import socket			# socket
+import string			# printable
+
+# local imports
+import sys
+sys.path.append('..')
+from crypto.zkp import *	# authentication
 
 def unwrap(data):
 	return ''.join(chr(c) for c in data).strip()
@@ -127,6 +131,7 @@ class Client:
 			print('[ Sent password ]')
 		else:
 			raise Exception('What did you do?')
+		self.server.sendall(b'Done.')
 	
 	def run(self):
 		username = self.send_username()
