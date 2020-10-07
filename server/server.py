@@ -14,13 +14,12 @@ import string			# printable
 import sys
 sys.path.append('..')
 from crypto.zkp import *	# authentication
+from JASocket.jasocket import *	# JASocket
 
 class Server:
 	def __init__(self, host, port, queuelength=5):
 		# Set up connection
-		self.server = socket.socket()
-		self.server.bind((host, port))
-		self.server.listen(queuelength)
+		self.server = JASocket(host, port, is_server=True, queuelength=queuelength)
 		# Gather user tokens
 		try:
 			f = open('client_tokens.txt','r')
@@ -57,21 +56,16 @@ class Server:
 	
 	def get_username(self, client):
 		# Receive username
-		username = client.recv(4096)
-		username = ''.join(chr(c) for c in username)
-		username = username.strip()
-		# Test if username is printable
-		if any(c not in string.printable for c in username):
-			raise Exception('client gave invalid username')
+		username = client.recv()
 		# Is this a new user?
 		if username in self.user_tokens:
 			print('[ Found user ]')
-			client.sendall(b'Found user.\n')
+			client.send('Found user.')
 		else:
 			print('[ New user ]')
 			# Get user token
-			client.sendall(b'New user. Send token.\n')
-			token = client.recv(4096).decode()
+			client.send('New user. Send token.\n')
+			token = client.recv()
 			print('[ Token:', token, ']')
 			self.user_tokens[username] = token
 			with open('client_tokens.txt','w') as f:

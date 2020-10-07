@@ -1,28 +1,30 @@
-from zkp import *
+''' server code '''
 
-import socket
-import os
-import binascii
+import os			# urandom
+from zkp import *		# Prover
+
+# local imports
+import sys
+sys.path.append('..')
+from JASocket.jasocket import *	# JASocket
 
 host = 'localhost'
 port = 373
 
 print('[ Setting up connections ]')
-server = socket.socket()
-server.bind((host, port))
-server.listen(1)
+server = JASocket(host, port, is_server=True)
 
 server_connection, _ = server.accept()
 
 print('[ Checking connection ]')
-print(server_connection.recv(4096).decode())
-server_connection.sendall(b'The server connection is working')
+print(server_connection.recv())
+server_connection.send('The server connection is working')
 
 print('[ Setting up ZKP]')
 # Server will prover to client
 # Set up with no secret
 prover = Prover(server_connection)
-server_connection.sendall(hex(prover.token)[2:].encode())
+server_connection.send(hex(prover.token)[2:])
 
 print('[ Check ZKP ]')
 print('token == pow(g, secret, p) :', prover.token == pow(g, prover.secret, p))

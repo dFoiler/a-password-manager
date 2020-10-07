@@ -1,3 +1,5 @@
+''' Zero-knowledge proof code '''
+
 # NIST safe prime; 2048-bit MODP group
 
 p = '''      FFFFFFFF FFFFFFFF C90FDAA2 2168C234 C4C6628B 80DC1CD1
@@ -15,10 +17,10 @@ p = int(''.join(p.split()),16)
 
 g = 2
 
-import os	# urandom
-import binascii # binascii
+import os		# urandom
+import binascii		# binascii
 
-def random(byte):
+def random(byte: int):
 	return int(binascii.hexlify(os.urandom(byte)), 16)
 
 ROUNDS = 256
@@ -43,18 +45,18 @@ class Prover:
 		r = random(256)
 		# Send g^r
 		C = pow(g, r, p)
-		self.verifier.sendall(hex(C)[2:].encode())
+		self.verifier.send(hex(C)[2:])
 		# Get verifier's choice
-		choice = self.verifier.recv(4096).strip()
+		choice = self.verifier.recv()
 		evidence = 0
 		# Send accordingly
-		if choice == b'r':
+		if choice == 'r':
 			evidence = r
-		elif choice == b'x':
+		elif choice == 'x':
 			evidence = (r+self.secret) % (p-1)
 		else:
-			raise Exception('Invalid choice: '+choice.decode())
-		self.verifier.sendall(hex(evidence)[2:].encode())
+			raise Exception('Invalid choice: '+choice)
+		self.verifier.send(hex(evidence)[2:])
 	
 	def run(self, rounds):
 		for r in range(rounds):
@@ -71,16 +73,16 @@ class Verifier:
 		# This is kind of an annoying thing
 		assert isinstance(self.token, int)
 	
-	# choice = b'r' means send r, choice = b'x' means send (x+r) % (p-1)
+	# choice = 'r' means send r, choice = 'x' means send (x+r) % (p-1)
 	def round(self, choice):
-		C = int(self.prover.recv(4096), 16)
+		C = int(self.prover.recv(), 16)
 		# Send our choice
-		self.prover.sendall(choice)
-		evidence = int(self.prover.recv(4096), 16)
-		if choice == b'r':
+		self.prover.send(choice)
+		evidence = int(self.prover.recv(), 16)
+		if choice == 'r':
 			# Check g^r is actually C
 			return  pow(g, evidence, p) == C
-		elif choice == b'x':
+		elif choice == 'x':
 			# Check g^(r+secret) is C * g^token
 			return (C * self.token) % p == pow(g, evidence, p)
 		else:
@@ -91,7 +93,7 @@ class Verifier:
 		ret = True
 		for r in range(rounds):
 			print('[ Round', r, ']\033[F')
-			choice = b'r' if random(1)%2 else b'x'
+			choice = 'r' if random(1)%2 else 'x'
 			# Update current
 			ret = self.round(choice) and ret
 			# Even if the other side has failed, we don't want them to know
