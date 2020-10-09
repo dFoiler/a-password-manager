@@ -64,7 +64,7 @@ class Server:
 		else:
 			print('[ New user ]')
 			# Get user token
-			client.send('New user. Send token.\n')
+			client.send('New user. Send token.')
 			token = client.recv()
 			print('[ Token:', token, ']')
 			self.user_tokens[username] = token
@@ -72,7 +72,7 @@ class Server:
 				f.write(json.dumps(self.user_tokens))
 				f.close()
 			# Send our token
-			client.sendall(hex(self.token)[2:].encode())
+			client.send(hex(self.token)[2:])
 		# Check if the username has passwords
 		if username not in self.user_pwds:
 			self.user_pwds[username] = {}
@@ -92,11 +92,11 @@ class Server:
 		prover.run(256)
 		# Run checks
 		if check:
-			client.sendall(b'Authenticated.')
+			client.send('Authenticated.')
 		else:
-			client.sendall(b'Failed.')
-		self_check = client.recv(4096).strip()
-		self_check = (self_check == b'Authenticated.')
+			client.send('Failed.')
+		self_check = client.recv().strip()
+		self_check = (self_check == 'Authenticated.')
 		# Failure
 		if not check or not self_check:
 			client.close()
@@ -104,30 +104,32 @@ class Server:
 		return check and self_check
 	
 	def run_pwds(self, client, username):
-		client.sendall(b'Ready.')
-		choice = client.recv(4096).decode()
-		client.sendall(b'Which?')
-		which = client.recv(4096).decode()
+		client.send('Ready.')
+		choice = client.recv()
+		client.send('Which?')
+		which = client.recv()
 		# Retrieve
 		if choice == 'r':
 			print('[ Retrieving',which,']')
 			if which in self.user_pwds[username]:
-				client.sendall(self.user_pwds[username][which].encode())
+				client.send(self.user_pwds[username][which])
+				print('[ Found ]')
 			else:
-				client.sendall(b'[ Password not found ]')
+				client.send('[ Password not found ]')
+				print('[ Not found ]')
 		# Store
 		elif choice == 's':
 			print('[ Storing to',which,']')
-			client.sendall(b'To?')
-			replacement = client.recv(4096).decode()
+			client.send('To?')
+			replacement = client.recv()
 			self.user_pwds[username][which] = replacement
 			with open('client_pwds.txt','w') as f:
 				f.write(json.dumps(self.user_pwds))
 				f.close()
 		else:
-			client.sendall(b'Invalid.')
-		assert client.recv(4096) == b'Done.'
-
+			client.send('Invalid.')
+		assert client.recv() == 'Done.'
+	
 	def run_client(self, client, addr):
 		# Check the username
 		username = self.get_username(client)
@@ -137,7 +139,7 @@ class Server:
 		print('[ Authenticating', addr[0], ']')
 		authenticated = self.authenticate(client, user_token)
 		print('[ Running ]')
-		# Run cat to show that we're done
+		# Run password protocol
 		while True:
 			self.run_pwds(client, username)
 	
