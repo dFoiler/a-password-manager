@@ -21,38 +21,14 @@ class Server:
 		# Set up connection
 		self.server = JASocket(host, port, is_server=True, queuelength=queuelength)
 		# Gather user tokens
-		try:
-			f = open('client_tokens.txt','r')
-			self.user_tokens = json.load(f)
-			f.close()
-		except FileNotFoundError:
-			f = open('client_tokens.txt','w')
-			self.user_tokens = {}
-			f.write(json.dumps(self.user_tokens))
-			f.close()
+		self.user_tokens = loadfile('client_tokens.txt', default={})
 		# Gather own secret
-		try:
-			f = open('secret.txt','r')
-			self.secret = json.load(f)
-			f.close()
-			self.secret = int(self.secret['secret'], 16)
-		except FileNotFoundError:
-			f = open('secret.txt','w')
-			self.secret = binascii.hexlify(os.urandom(256)).decode()
-			f.write(json.dumps({'secret':self.secret}))
-			f.close()
-			self.secret = int(self.secret, 16)
+		secret = binascii.hexlify(os.urandom(256)).decode()
+		self.secret = loadfile('secret.txt', default={'secret':secret})
+		self.secret = int(self.secret['secret'], 16)
 		self.token = pow(g, self.secret, p)
 		# Get user passwords
-		try:
-			f = open('client_pwds.txt','r')
-			self.user_pwds = json.load(f)
-			f.close()
-		except FileNotFoundError:
-			f = open('client_pwds.txt','w')
-			self.user_pwds = {}
-			f.write(json.dumps(self.user_pwds))
-			f.close()
+		self.user_pwds = loadfile('client_pwds.txt', default={})
 	
 	def get_username(self, client):
 		# Receive username
@@ -80,9 +56,7 @@ class Server:
 			token = client.recv()
 			print('[ Token:', token, ']')
 			self.user_tokens[username] = token
-			with open('client_tokens.txt','w') as f:
-				f.write(json.dumps(self.user_tokens))
-				f.close()
+			writefile('client_tokens.txt', self.user_tokens)
 			# Send our token
 			client.send(hex(self.token)[2:])
 		# Check if the username has passwords
@@ -138,9 +112,7 @@ class Server:
 			client.send('To?')
 			replacement = client.recv()
 			self.user_pwds[username][which] = replacement
-			with open('client_pwds.txt','w') as f:
-				f.write(json.dumps(self.user_pwds))
-				f.close()
+			writefile('client_pwds.txt', self.user_pwds)
 		else:
 			client.send('Invalid.')
 		assert client.recv() == 'Done.'
