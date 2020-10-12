@@ -27,7 +27,6 @@ class Client:
 		self.server_token = int(self.server_tokens[host], 16)
 	
 	def send_username(self):
-		# TODO: Do something about repeat usernames
 		# Prompt for username
 		username = ''
 		while True:
@@ -41,31 +40,34 @@ class Client:
 				break
 		username = username.strip()
 		# Get own secret now that we know our username
-		secret = binascii.hexlify(os.urandom(256)).decode()
-		self.secrets = loadfile('secrets.txt', default={username:secret})
+		self.secrets = loadfile('secrets.txt')
 		# Tell the user that we're new
 		new_user = username not in self.secrets
 		if new_user:
 			print('[ New user ]')
-
-		self.secret = int(self.secrets[username], 16)
-		self.token = pow(g, self.secret, p)
 		print('[ Sending username "' + username + '" to server ]')
 		self.server.send(('New:' if new_user else 'Old:')+username)
 		response = self.server.recv()
 		# We're already in the system
-		if response == 'Found user.':
+		if response == 'Found user.' and not new_user:
 			print('[ Found user ]')
+			self.secret = int(self.secrets[username], 16)
+			self.token = pow(g, self.secret, p)
 		# Server recognizes that we're new
-		elif response == 'New user. Send token.':
+		elif response == 'New user. Send token.' and new_user:
+			# Generate secret and token
+			self.secrets[username] = binascii.hexlify(os.urandom(256)).decode()
+			writefile('secrets.txt', self.secrets)
+			self.secret = int(self.secrets[username], 16)
+			self.token = pow(g, self.secret, p)
 			print('[ New user ]\n[ Sending token ]')
-			self.secrets[username] = secret
 			self.server.send(hex(self.token)[2:])
+			# Receive the server token
 			self.server_tokens[host] = self.server.recv()
 			writefile('server_tokens.txt',self.server_tokens)
 			self.server_token = int(self.server_tokens[host], 16)
 		# We're new, but server has us on file; recurse
-		elif response == 'Username taken.':
+		elif response == 'Username taken.' and new_user:
 			print('[ Username taken ]')
 			return self.send_username()
 		else:
