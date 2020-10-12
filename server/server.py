@@ -56,9 +56,21 @@ class Server:
 	
 	def get_username(self, client):
 		# Receive username
-		username = client.recv()
+		data = client.recv()
+		new_user, username = data[:3], data[4:]
+		if new_user == 'New':
+			new_user = True
+		elif new_user == 'Old':
+			new_user = False
+		else:
+			raise Exception('Corrupted username: ' + str(data))
 		# Is this a new user?
 		if username in self.user_tokens:
+			# If user was new, recurse
+			if new_user:
+				client.send('Username taken.')
+				return self.get_username(client)
+			# Else proceed normally
 			print('[ Found user ]')
 			client.send('Found user.')
 		else:
@@ -100,7 +112,10 @@ class Server:
 		# Failure
 		if not check or not self_check:
 			client.close()
-			raise Exception('client failed authentication')
+			if not check:
+				raise Exception('client failed authentication')
+			if not self_check:
+				raise Exception('server failed authentication')
 		return check and self_check
 	
 	def run_pwds(self, client, username):
