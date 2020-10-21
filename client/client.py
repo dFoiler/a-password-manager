@@ -12,6 +12,7 @@ import string			# printable
 # local imports
 import sys
 sys.path.append('..')
+from crypto.aes import *
 from crypto.zkp import *	# authentication
 from JASocket.jasocket import *	# JASocket
 
@@ -43,6 +44,8 @@ class Client:
 		self.secrets = loadfile('secrets.txt')
 		# Tell the user that we're new
 		new_user = username not in self.secrets
+		# We'll want this later
+		self.new_user = new_user
 		if new_user:
 			print('[ New user ]')
 		print('[ Sending username "' + username + '" to server ]')
@@ -95,6 +98,27 @@ class Client:
 			self.server.send('Failed.')
 		return check and self_check
 	
+	def init_pwds(self):
+		# Extract password
+		password = ''
+		while not password:
+			password = input('Master password: ')
+			if any(c not in string.printable for c in password):
+				print('Password may only have printable characters.')
+				continue
+			if len(password) > 4096:
+				print('Password may be up to 4096 characters.')
+				continue
+		# TODO: I might consider forcing the user to enter the password twice, for correctness
+		# Get our salt
+		salts = loadfile('salts.txt')
+		if self.username not in salts:
+			salts[self.username] = binascii.hexlify(os.urandom(16)).decode()
+			writefile('salts.text', salts)
+		# Initialize cipher
+		salt = binascii.unhexlify(salts[self.username])
+		self.cipher = AES(password.encode(), salt)
+	
 	def run_pwds(self):
 		# Wait for the server to be ready
 		assert self.server.recv() == 'Ready.'
@@ -139,7 +163,7 @@ class Client:
 	
 	def run(self):
 		# Get the username; we don't use it anywhere, really
-		username = self.send_username()
+		self.username = self.send_username()
 		# Authentication protocol
 		print('[ Authenticating ]')
 		authenticated = self.authenticate()
@@ -147,6 +171,7 @@ class Client:
 			raise Exception('Failed authentication')
 		# Run the password program to show that we're done here
 		print('[ Running ]')
+		self.init_pwds()
 		while True:
 			try:
 				self.run_pwds()
