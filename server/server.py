@@ -68,6 +68,7 @@ class Server:
 		return username
 	
 	def authenticate(self, client, token):
+		return True
 		# Client proves first
 		print('[ Verifying client ]')
 		verifier = Verifier(client,token)

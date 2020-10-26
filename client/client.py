@@ -78,6 +78,7 @@ class Client:
 		return username
 	
 	def authenticate(self):
+		return True
 		# Client proves first
 		print('[ Verifying client ]')
 		prover = Prover(self.server, secret=self.secret)
@@ -114,7 +115,7 @@ class Client:
 		salts = loadfile('salts.txt')
 		if self.username not in salts:
 			salts[self.username] = binascii.hexlify(os.urandom(16)).decode()
-			writefile('salts.text', salts)
+			writefile('salts.txt', salts)
 		# Initialize cipher
 		salt = binascii.unhexlify(salts[self.username])
 		self.cipher = AES(password.encode(), salt)
@@ -148,13 +149,15 @@ class Client:
 		self.server.send(which)
 		# Retrieving
 		if choice == 'r':
-			pwd = self.server.recv()
-			print('Password:', pwd)
+			encrypted = self.server.recv().encode()
+			decrypted = self.cipher.decrypt(encrypted).decode()
+			print('Password:', decrypted)
 		# Storing
 		elif choice == 's':
 			assert self.server.recv() == 'To?'
 			replacement = input('What are you storing?\n')
-			self.server.send(replacement)
+			encrypted = self.cipher.encrypt(replacement.encode()).decode()
+			self.server.send(encrypted)
 			print('[ Sent password ]')
 		# This shouldn't be possible
 		else:
