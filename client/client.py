@@ -10,7 +10,7 @@ import socket			# socket
 import string			# printable
 
 # local imports
-import sys
+import sys			# TODO: Fix this to work for other directories
 sys.path.append('..')
 from crypto.aes import *
 from crypto.zkp import *	# authentication
@@ -117,8 +117,7 @@ class Client:
 			salts[self.username] = binascii.hexlify(os.urandom(16)).decode()
 			writefile('salts.txt', salts)
 		# Initialize cipher
-		salt = binascii.unhexlify(salts[self.username])
-		self.cipher = AES(password.encode(), salt)
+		self.cipher = AES(password, salts[self.username])
 	
 	def run_pwds(self):
 		# Wait for the server to be ready
@@ -127,18 +126,9 @@ class Client:
 		choice = ''
 		while choice != 'r' and choice != 's':
 			choice = input('[R]etrieve or [S]tore?\n').lower()
-			# In general sending empty lines is a problem
-			# I think it's reasonable for empty to be mad
+			# Sending nothing requires this edge check
 			if len(choice) > 0:
 				choice = choice[0]
-		# Show the user we recognize
-		if choice == 'r':
-			print('[ Retrieving ]')
-		elif choice == 's':
-			print('[ Storing ]')
-		# This shouldn't be possible
-		else:
-			raise Exception('What did you do?')
 		# Send and receive
 		self.server.send(choice)
 		assert self.server.recv() == 'Which?'
@@ -149,14 +139,32 @@ class Client:
 		self.server.send(which)
 		# Retrieving
 		if choice == 'r':
-			encrypted = self.server.recv().encode()
-			decrypted = self.cipher.decrypt(encrypted).decode()
-			print('Password:', decrypted)
+			# TODO: Add padding to avoid length-extension attacks
+			encrypted = self.server.recv()
+			if encrypted == '[ Password not found ]':
+				print('[ Password not found ]')
+			else:
+				decrypted = self.cipher.decrypt(encrypted)
+				print('Password:', decrypted)
 		# Storing
 		elif choice == 's':
 			assert self.server.recv() == 'To?'
-			replacement = input('What are you storing?\n')
-			encrypted = self.cipher.encrypt(replacement.encode()).decode()
+			# Ask use about randomizing passwords
+			is_random = ''
+			while is_random != 'r' and is_random != 'e':
+				is_random = input('[R]andomize or [E]nter?\n').lower()
+				if len(is_random) > 0:
+					is_random = is_random[0]
+			replacement = ''
+			if is_random == 'r':
+				# Lazy randint
+				charlist = [chr(c) for c in range(33,126)]
+				for _ in range(16):
+					rand = int(binascii.hexlify(os.urandom(4)), 16)
+					replacement += charlist[rand % (126-33)]
+			elif is_random == 'e':
+				replacement = input('What are you storing?\n')
+			encrypted = self.cipher.encrypt(replacement)
 			self.server.send(encrypted)
 			print('[ Sent password ]')
 		# This shouldn't be possible
