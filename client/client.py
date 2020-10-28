@@ -4,6 +4,7 @@ host = 'localhost'
 port = 373
 
 import binascii			# hexlify
+import getpass			# getpass
 import json			# loads, dumps
 import os			# urandom
 import socket			# socket
@@ -78,7 +79,6 @@ class Client:
 		return username
 	
 	def authenticate(self):
-		return True
 		# Client proves first
 		print('[ Verifying client ]')
 		prover = Prover(self.server, secret=self.secret)
@@ -103,7 +103,7 @@ class Client:
 		# Extract password
 		password = ''
 		while not password:
-			password = input('Master password: ')
+			password = getpass.getpass('Master password: ')
 			if any(c not in string.printable for c in password):
 				print('Password may only have printable characters.')
 				continue
@@ -136,6 +136,7 @@ class Client:
 		which = ''
 		while len(which) == 0:
 			which = input('Which password?\n').strip()
+		# TODO: Encrypt this
 		self.server.send(which)
 		# Retrieving
 		if choice == 'r':
@@ -167,9 +168,6 @@ class Client:
 			encrypted = self.cipher.encrypt(replacement)
 			self.server.send(encrypted)
 			print('[ Sent password ]')
-		# This shouldn't be possible
-		else:
-			raise Exception('What did you do?')
 		self.server.send('Done.')
 	
 	def run(self):
