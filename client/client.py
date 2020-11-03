@@ -13,7 +13,8 @@ import string			# printable
 # local imports
 import sys			# TODO: Fix this to work for other directories
 sys.path.append('..')
-from crypto.aes import *
+from helpers import *		# get_rand_word
+from crypto.aes import *	# encrypt, decrypt
 from crypto.zkp import *	# authentication
 from JASocket.jasocket import *	# JASocket
 
@@ -158,11 +159,7 @@ class Client:
 					is_random = is_random[0]
 			replacement = ''
 			if is_random == 'r':
-				# Lazy randint
-				charlist = [chr(c) for c in range(33,126)]
-				for _ in range(16):
-					rand = int(binascii.hexlify(os.urandom(4)), 16)
-					replacement += charlist[rand % (126-33)]
+				replacement = get_rand_word(32)
 			elif is_random == 'e':
 				replacement = input('What are you storing?\n')
 			encrypted = self.cipher.encrypt(replacement)

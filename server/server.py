@@ -13,6 +13,7 @@ import string			# printable
 # local imports
 import sys
 sys.path.append('..')		# TODO: Fix this to work for other directories
+from helpers import *
 from crypto.zkp import *	# authentication
 from JASocket.jasocket import *	# JASocket
 
