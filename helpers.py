@@ -1,3 +1,4 @@
+import getpass		# getpass
 import json		# loads, dumps
 import os		# urandom
 
@@ -13,16 +14,18 @@ def is_printable(s: str):
 	return True
 
 # Generic input function
-def get_input(prompt, maxlength=None, minlength=None, options=None):
+def get_input(prompt='> ', password=False,
+		maxlength=None, minlength=None, options=None):
+	inputfunction = getpass.getpass if password else input
 	while True:
-		r = input(prompt)
+		r = inputfunction(prompt)
 		if maxlength and len(r) > maxlength:
 			print('Length cannot exceed', maxlength)
 			continue
 		if minlength and len(r) < minlength:
 			print('Length cannot go below', minlength)
 			continue
-		if options and r not in options:
+		if options and any(c not in options for c in r):
 			print('Must be in', options)
 			continue
 		return r

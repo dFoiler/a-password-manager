@@ -31,16 +31,9 @@ class Client:
 	
 	def send_username(self):
 		# Prompt for username
-		username = ''
-		while True:
-			username = input('Enter username: ')
-			# Pinrtable usernames with reasonable lengths only
-			if any(not c.isalnum() for c in username):
-				print('Only alphanumeric characters please.')
-			elif len(username) == 0 or len(username) > 4096:
-				print('Fewer than 4096 characters please.')
-			else:
-				break
+		charlist = [chr(c) for c in range(128) if chr(c).isalnum()]
+		print('Enter username:')
+		username = get_input(minlength=1, maxlength=4000, options=charlist)
 		username = username.strip()
 		# Get own secret now that we know our username
 		self.secrets = loadfile('secrets.txt')
@@ -102,15 +95,9 @@ class Client:
 	
 	def init_pwds(self):
 		# Extract password
-		password = ''
-		while not password:
-			password = getpass.getpass('Master password: ')
-			if any(c not in string.printable for c in password):
-				print('Password may only have printable characters.')
-				continue
-			if len(password) > 4096:
-				print('Password may be up to 4096 characters.')
-				continue
+		print('Master password:')
+		password = get_input(minlength=1, maxlength=4096, options=string.printable,
+			password=True)
 		# TODO: I might consider forcing the user to enter the password twice, for correctness
 		# Get our salt
 		salts = loadfile('salts.txt')
@@ -124,19 +111,15 @@ class Client:
 		# Wait for the server to be ready
 		assert self.server.recv() == 'Ready.'
 		# User selects a choice
-		choice = ''
-		while choice != 'r' and choice != 's':
-			choice = input('[R]etrieve or [S]tore?\n').lower()
-			# Sending nothing requires this edge check
-			if len(choice) > 0:
-				choice = choice[0]
+		print('[R]etrieve or [S]tore')
+		choice = get_input(minlength=1, maxlength=1, options=['r','s','R','S'])
+		choice = choice.lower()
 		# Send and receive
 		self.server.send(choice)
 		assert self.server.recv() == 'Which?'
 		# Same rules as the choice hold here
-		which = ''
-		while len(which) == 0:
-			which = input('Which password?\n').strip()
+		print('Which password?')
+		which = get_input(minlength=1, maxlength=4000)
 		# TODO: Encrypt this
 		self.server.send(which)
 		# Retrieving
@@ -147,24 +130,23 @@ class Client:
 				print('[ Password not found ]')
 			else:
 				decrypted = self.cipher.decrypt(encrypted)
-				print('Password:', decrypted)
+				print('Password: "' + decrypted + '"')
 		# Storing
 		elif choice == 's':
 			assert self.server.recv() == 'To?'
 			# Ask use about randomizing passwords
-			is_random = ''
-			while is_random != 'r' and is_random != 'e':
-				is_random = input('[R]andomize or [E]nter?\n').lower()
-				if len(is_random) > 0:
-					is_random = is_random[0]
+			print('[R]andom or [E]nter?')
+			is_random = get_input(minlength=1, maxlength=1, options=['r','e','R','E'])
+			is_random = (is_random=='r')
 			replacement = ''
-			if is_random == 'r':
+			if is_random:
 				replacement = get_rand_word(32)
-			elif is_random == 'e':
-				replacement = input('What are you storing?\n')
+			else:
+				print('Enter password:')
+				replacement = get_input(minlength=1, maxlength=4000)
 			encrypted = self.cipher.encrypt(replacement)
 			self.server.send(encrypted)
-			print('[ Sent password ]')
+			print('[ Sent password "' + replacement + '" ]')
 		self.server.send('Done.')
 	
 	def run(self):
