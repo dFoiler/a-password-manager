@@ -11,8 +11,9 @@ import socket			# socket
 import string			# printable
 
 # local imports
-import sys
-sys.path.append('..')		# TODO: Fix this to work for other directories
+if __name__ == "__main__":	# Running the program locally
+	import sys
+	sys.path.append('..')
 from helpers import *
 from crypto.zkp import *	# authentication
 from JASocket.jasocket import *	# JASocket

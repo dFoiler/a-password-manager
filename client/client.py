@@ -11,8 +11,9 @@ import socket			# socket
 import string			# printable
 
 # local imports
-import sys			# TODO: Fix this to work for other directories
-sys.path.append('..')
+if __name__ == "__main__":	# Running the program locally
+	import sys
+	sys.path.append('..')
 from helpers import *		# get_rand_word
 from crypto.aes import *	# encrypt, decrypt
 from crypto.zkp import *	# authentication
@@ -72,7 +73,7 @@ class Client:
 			raise Exception('Something went wrong.')
 		return username
 	
-	def authenticate(self):
+	def authenticate(self, debug=False):
 		# Client proves first
 		print('[ Verifying client ]')
 		prover = Prover(self.server, secret=self.secret)
@@ -95,10 +96,17 @@ class Client:
 	
 	def init_pwds(self):
 		# Extract password
-		print('Master password:')
-		password = get_input(minlength=1, maxlength=4096, options=string.printable,
-			password=True)
-		# TODO: I might consider forcing the user to enter the password twice, for correctness
+		password = ''; confirm = 'unequal'
+		# Password has to confirm because this is master
+		while password != confirm:
+			print('Master password:')
+			password = get_input(minlength=1, maxlength=4000,
+				options=string.printable, password=True)
+			print('Confirm password:')
+			confirm = get_input(minlength=1, maxlength=4000,
+				options=string.printable, password=True)
+			if password != confirm:
+				print('[ Passwords do not match ]')
 		# Get our salt
 		salts = loadfile('salts.txt')
 		if self.username not in salts:
@@ -124,7 +132,6 @@ class Client:
 		self.server.send(which)
 		# Retrieving
 		if choice == 'r':
-			# TODO: Add padding to avoid length-extension attacks
 			encrypted = self.server.recv()
 			if encrypted == '[ Password not found ]':
 				print('[ Password not found ]')
@@ -137,13 +144,13 @@ class Client:
 			# Ask use about randomizing passwords
 			print('[R]andom or [E]nter?')
 			is_random = get_input(minlength=1, maxlength=1, options=['r','e','R','E'])
-			is_random = (is_random=='r')
 			replacement = ''
-			if is_random:
-				replacement = get_rand_word(32)
-			else:
+			if is_random in ['r','R']:
+				charlist = [chr(c) for c in range(33,128)]
+				replacement = get_rand_word(32, charlist)
+			elif is_random in ['e', 'E']:
 				print('Enter password:')
-				replacement = get_input(minlength=1, maxlength=4000)
+				replacement = get_input(minlength=1, maxlength=1000)
 			encrypted = self.cipher.encrypt(replacement)
 			self.server.send(encrypted)
 			print('[ Sent password "' + replacement + '" ]')
