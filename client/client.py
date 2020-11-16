@@ -18,6 +18,7 @@ import sys
 sys.path.append(PATH+'..')
 from helpers import *		# get_rand_word
 from crypto.aes import *	# encrypt, decrypt
+from crypto.hasher import *	# hash
 from crypto.zkp import *	# authentication
 from JASocket.jasocket import *	# JASocket
 
@@ -130,7 +131,7 @@ class Client:
 				options=string.printable, password=True)
 			if password != confirm:
 				print('[ Passwords do not match ]')
-		# Get our salt
+		# Get our salts
 		salts = loadfile(PATH+'salts.txt')
 		if self.username not in salts:
 			salts[self.username] = {
@@ -140,6 +141,8 @@ class Client:
 			writefile(PATH+'salts.txt', salts)
 		# Initialize ciphers for names and passwords
 		self.cipher = AES(password, salts[self.username]['pw'])
+		# We have a different salt, just in case
+		self.hasher = Hasher(salts[self.username]['nm'])
 	
 	def run_pwds(self):
 		# Wait for the server to be ready
@@ -154,8 +157,8 @@ class Client:
 		# Same rules as the choice hold here
 		print('Which password?')
 		nm = self.get_input(minlength=1, maxlength=4000)
-		# TODO Send hashed name
-		self.server.send(nm)
+		# Send hashed name
+		self.server.send(self.hasher.hash(nm))
 		# Retrieving
 		if choice == 'r':
 			encrypted = self.server.recv()
