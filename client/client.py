@@ -11,33 +11,55 @@ import socket			# socket
 import string			# printable
 
 # local imports
-if __name__ == "__main__":	# Running the program locally
-	import sys
-	sys.path.append('..')
+PATH = './' + __file__
+PATH = PATH[:-PATH[::-1].find('/')]
+# Go back up a directory from here
+import sys
+sys.path.append(PATH+'..')
 from helpers import *		# get_rand_word
 from crypto.aes import *	# encrypt, decrypt
 from crypto.zkp import *	# authentication
 from JASocket.jasocket import *	# JASocket
 
 class Client:
-	def __init__(self, host, port):
+	def __init__(self, host, port, wdinp=input, pwinp=getpass.getpass):
 		# Set up connection
 		self.server = JASocket(host, port)
 		# Get server's token
-		self.server_tokens = loadfile('server_tokens.txt')
+		self.server_tokens = loadfile(PATH+'server_tokens.txt')
 		if host not in self.server_tokens:
 			self.server_tokens[host] = '-1'
-			writefile('server_tokens.txt', self.server_tokens)
+			writefile(PATH+'server_tokens.txt', self.server_tokens)
 		self.server_token = int(self.server_tokens[host], 16)
+		# Set input functions
+		self.wdinp = wdinp	# word input
+		self.pwinp = pwinp	# password input
+	
+	def get_input(self, prompt='> ', password=False,
+		maxlength=None, minlength=None, options=None):
+		# This is convenience
+		inputfunction = self.pwinp if password else self.wdinp
+		while True:
+			# Get inputs
+			r = inputfunction(prompt)
+			# Run checks
+			if maxlength and len(r) > maxlength:
+				print('Length cannot exceed', maxlength)
+			elif minlength and len(r) < minlength:
+				print('Length cannot go below', minlength)
+			elif options and any(c not in options for c in r):
+				print('Must be in', options)
+			else:
+				return r
 	
 	def send_username(self):
 		# Prompt for username
 		charlist = [chr(c) for c in range(128) if chr(c).isalnum()]
 		print('Enter username:')
-		username = get_input(minlength=1, maxlength=4000, options=charlist)
+		username = self.get_input(minlength=1, maxlength=4000, options=charlist)
 		username = username.strip()
 		# Get own secret now that we know our username
-		self.secrets = loadfile('secrets.txt')
+		self.secrets = loadfile(PATH+'secrets.txt')
 		# Tell the user that we're new
 		new_user = username not in self.secrets
 		# We'll want this later
@@ -56,14 +78,14 @@ class Client:
 		elif response == 'New user. Send token.' and new_user:
 			# Generate secret and token
 			self.secrets[username] = binascii.hexlify(os.urandom(256)).decode()
-			writefile('secrets.txt', self.secrets)
+			writefile(PATH+'secrets.txt', self.secrets)
 			self.secret = int(self.secrets[username], 16)
 			self.token = pow(g, self.secret, p)
 			print('[ New user ]\n[ Sending token ]')
 			self.server.send(hex(self.token)[2:])
 			# Receive the server token
 			self.server_tokens[host] = self.server.recv()
-			writefile('server_tokens.txt',self.server_tokens)
+			writefile(PATH+'server_tokens.txt',self.server_tokens)
 			self.server_token = int(self.server_tokens[host], 16)
 		# We're new, but server has us on file; recurse
 		elif response == 'Username taken.' and new_user:
@@ -100,18 +122,18 @@ class Client:
 		# Password has to confirm because this is master
 		while password != confirm:
 			print('Master password:')
-			password = get_input(minlength=1, maxlength=4000,
+			password = self.get_input(minlength=1, maxlength=4000,
 				options=string.printable, password=True)
 			print('Confirm password:')
-			confirm = get_input(minlength=1, maxlength=4000,
+			confirm = self.get_input(minlength=1, maxlength=4000,
 				options=string.printable, password=True)
 			if password != confirm:
 				print('[ Passwords do not match ]')
 		# Get our salt
-		salts = loadfile('salts.txt')
+		salts = loadfile(PATH+'salts.txt')
 		if self.username not in salts:
 			salts[self.username] = binascii.hexlify(os.urandom(16)).decode()
-			writefile('salts.txt', salts)
+			writefile(PATH+'salts.txt', salts)
 		# Initialize cipher
 		self.cipher = AES(password, salts[self.username])
 	
@@ -120,14 +142,14 @@ class Client:
 		assert self.server.recv() == 'Ready.'
 		# User selects a choice
 		print('[R]etrieve or [S]tore')
-		choice = get_input(minlength=1, maxlength=1, options=['r','s','R','S'])
+		choice = self.get_input(minlength=1, maxlength=1, options=['r','s','R','S'])
 		choice = choice.lower()
 		# Send and receive
 		self.server.send(choice)
 		assert self.server.recv() == 'Which?'
 		# Same rules as the choice hold here
 		print('Which password?')
-		which = get_input(minlength=1, maxlength=4000)
+		which = self.get_input(minlength=1, maxlength=4000)
 		# TODO: Encrypt this
 		self.server.send(which)
 		# Retrieving
@@ -143,14 +165,14 @@ class Client:
 			assert self.server.recv() == 'To?'
 			# Ask use about randomizing passwords
 			print('[R]andom or [E]nter?')
-			is_random = get_input(minlength=1, maxlength=1, options=['r','e','R','E'])
+			is_random = self.get_input(minlength=1, maxlength=1, options=['r','e','R','E'])
 			replacement = ''
 			if is_random in ['r','R']:
 				charlist = [chr(c) for c in range(33,128)]
 				replacement = get_rand_word(32, charlist)
 			elif is_random in ['e', 'E']:
 				print('Enter password:')
-				replacement = get_input(minlength=1, maxlength=1000)
+				replacement = self.get_input(minlength=1, maxlength=1000)
 			encrypted = self.cipher.encrypt(replacement)
 			self.server.send(encrypted)
 			print('[ Sent password "' + replacement + '" ]')

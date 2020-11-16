@@ -15,26 +15,6 @@ def is_printable(s: str):
 			return False
 	return True
 
-# Generic input function
-def get_input(prompt: str='> ', password: bool=False,
-		maxlength: int=None, minlength: int=None, options: list=None):
-	# password parameter dictates how we take input
-	inputfunction = getpass.getpass if password else input
-	while True:
-		# Get input
-		r = inputfunction(prompt)
-		# Check various conditions, accounting for None
-		if maxlength and len(r) > maxlength:
-			print('Length cannot exceed', maxlength)
-			continue
-		if minlength and len(r) < minlength:
-			print('Length cannot go below', minlength)
-			continue
-		if options and any(c not in options for c in r):
-			print('Must be in', options)
-			continue
-		return r
-
 # Loads a dictionary from a file
 def loadfile(name: str, default: dict={}):
 	# No bytes-related stuff please
