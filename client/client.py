@@ -96,6 +96,7 @@ class Client:
 		return username
 	
 	def authenticate(self, debug=False):
+		return True
 		# Client proves first
 		print('[ Verifying client ]')
 		prover = Prover(self.server, secret=self.secret)
@@ -132,10 +133,13 @@ class Client:
 		# Get our salt
 		salts = loadfile(PATH+'salts.txt')
 		if self.username not in salts:
-			salts[self.username] = binascii.hexlify(os.urandom(16)).decode()
+			salts[self.username] = {
+				'pw':binascii.hexlify(os.urandom(16)).decode(),
+				'nm':binascii.hexlify(os.urandom(16)).decode()
+			}
 			writefile(PATH+'salts.txt', salts)
-		# Initialize cipher
-		self.cipher = AES(password, salts[self.username])
+		# Initialize ciphers for names and passwords
+		self.cipher = AES(password, salts[self.username]['pw'])
 	
 	def run_pwds(self):
 		# Wait for the server to be ready
@@ -149,9 +153,9 @@ class Client:
 		assert self.server.recv() == 'Which?'
 		# Same rules as the choice hold here
 		print('Which password?')
-		which = self.get_input(minlength=1, maxlength=4000)
-		# TODO: Encrypt this
-		self.server.send(which)
+		nm = self.get_input(minlength=1, maxlength=4000)
+		# TODO Send hashed name
+		self.server.send(nm)
 		# Retrieving
 		if choice == 'r':
 			encrypted = self.server.recv()
@@ -159,7 +163,10 @@ class Client:
 				print('[ Password not found ]')
 			else:
 				decrypted = self.cipher.decrypt(encrypted)
-				print('Password: "' + decrypted + '"')
+				# Extract the test_which in case of corruption
+				test_nm, pw = decrypted[:len(nm)], decrypted[len(nm):]
+				assert nm == test_nm
+				print('Password: "' + pw + '"')
 		# Storing
 		elif choice == 's':
 			assert self.server.recv() == 'To?'
@@ -173,8 +180,8 @@ class Client:
 			elif is_random in ['e', 'E']:
 				print('Enter password:')
 				replacement = self.get_input(minlength=1, maxlength=1000)
-			encrypted = self.cipher.encrypt(replacement)
-			self.server.send(encrypted)
+			# We include which as well here, to check for corruption
+			self.server.send(self.cipher.encrypt(nm+replacement))
 			print('[ Sent password "' + replacement + '" ]')
 		self.server.send('Done.')
 	
