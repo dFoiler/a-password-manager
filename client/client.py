@@ -11,11 +11,12 @@ import socket			# socket
 import string			# printable
 
 # local imports
-PATH = './' + __file__
+PATH = os.path.abspath(__file__)
 PATH = PATH[:-PATH[::-1].find('/')]
 # Go back up a directory from here
 import sys
 sys.path.append(PATH+'..')
+print(sys.path)
 from helpers import *		# get_rand_word
 from crypto.aes import *	# encrypt, decrypt
 from crypto.hasher import *	# hash

@@ -11,7 +11,7 @@ import socket			# socket
 import string			# printable
 
 # local imports
-PATH = './' + __file__
+PATH = os.path.abspath(__file__)
 PATH = PATH[:-PATH[::-1].find('/')]
 # Go back up a directory from here
 import sys
