@@ -97,7 +97,6 @@ class Client:
 		return username
 	
 	def authenticate(self, debug=False):
-		return True
 		# Client proves first
 		print('[ Verifying client ]')
 		prover = Prover(self.server, secret=self.secret)
