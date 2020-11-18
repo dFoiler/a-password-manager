@@ -1,9 +1,3 @@
-''' server code '''
-
-host = 'localhost'
-port = 373
-
-
 import binascii 		# hexlify
 import json			# load, dumps
 import os			# urandom
@@ -21,7 +15,18 @@ from crypto.zkp import *	# authentication
 from JASocket.jasocket import *	# JASocket
 
 class Server:
+	''' This class is for creating server objects '''
 	def __init__(self, host, port, queuelength=5):
+		'''
+		Parameters
+		----------
+		host : str
+			String naming the host to bind to
+		port : int
+			Integer value of the port to bind to
+		queuelength : int
+			Length of the waiting queue for the connection
+		'''
 		# Set up connection
 		self.server = JASocket(host, port, is_server=True, queuelength=queuelength)
 		# Gather user tokens
@@ -35,6 +40,18 @@ class Server:
 		self.user_pwds = loadfile(PATH+'client_pwds.txt', default={})
 	
 	def get_username(self, client):
+		'''
+		Runs the username extraction protocol with the client
+		
+		Parameters
+		----------
+		client: socket
+			Socket connection of the client
+		
+		Returns
+		-------
+		str, the username of the user
+		'''
 		# Receive username
 		data = client.recv()
 		new_user, username = data[:3], data[4:]
@@ -72,6 +89,19 @@ class Server:
 		return username
 	
 	def authenticate(self, client, token):
+		'''
+		Runs the authentication protocol with the client; see crypto
+		Parameters
+		----------
+		client : socket
+			Socket connection of the client
+		token : str
+			Hex string givig the token of the client
+		
+		Returns
+		-------
+		bool, if the authentication was successful
+		'''
 		# Client proves first
 		print('[ Verifying client ]')
 		verifier = Verifier(client,token)
@@ -97,6 +127,16 @@ class Server:
 		return check and self_check
 	
 	def run_pwds(self, client, username):
+		'''
+		Runs the password exchange protocol
+		
+		Parameters
+		----------
+		client : socket
+			Socket connection of the client
+		username : str
+			Username of the client
+		'''
 		client.send('Ready.')
 		choice = client.recv()
 		client.send('Which?')
@@ -122,6 +162,16 @@ class Server:
 		assert client.recv() == 'Done.'
 	
 	def run_client(self, client, addr):
+		'''
+		Runs the program with the specified client
+		
+		Parameters
+		----------
+		client : socket
+			Socket connection of the client
+		addr : str
+			Address of the current client
+		'''
 		# Check the username
 		username = self.get_username(client)
 		print('[', addr[0], 'is', username, ']')
@@ -135,6 +185,9 @@ class Server:
 			self.run_pwds(client, username)
 	
 	def run(self):
+		'''
+		Runs the entire program, in sequence
+		'''
 		print('[ Running ]')
 		while True:
 			try:
@@ -153,5 +206,7 @@ class Server:
 			client.close()
 
 if __name__ == "__main__":
-	server = Server(host, port)
+	HOST = 'localhost'
+	PORT = 373
+	server = Server(HOST, PORT)
 	server.run()

@@ -1,8 +1,3 @@
-''' client code '''
-
-host = 'localhost'
-port = 373
-
 import binascii			# hexlify
 import getpass			# getpass
 import json			# loads, dumps
@@ -23,7 +18,20 @@ from crypto.zkp import *	# authentication
 from JASocket.jasocket import *	# JASocket
 
 class Client:
+	''' This class is for creating client objects '''
 	def __init__(self, host, port, wdinp=input, pwinp=getpass.getpass):
+		'''
+		Parameters
+		----------
+		host : str
+			String naming the host
+		port : int
+			Integer value of the port of host
+		wdinp : function, optional
+			Function to take input
+		pdinp : function, optional
+			Function to take passwords
+		'''
 		# Set up connection
 		self.server = JASocket(host, port)
 		# Get server's token
@@ -38,6 +46,26 @@ class Client:
 	
 	def get_input(self, prompt='> ', password=False,
 		maxlength=None, minlength=None, options=None):
+		'''
+		Function to get input from the user
+		
+		Parameters
+		----------
+		prompt : str, optional
+			String to prompt the user with
+		password : bool, optional
+			Determines if we are inputting a password
+		maxlength : int, optional
+			Maximum length of input
+		minlength : int, optional
+			Minimum length of input
+		options : list, optional
+			List of possible characters to use
+		
+		Returns
+		-------
+		str, the user input
+		'''
 		# This is convenience
 		inputfunction = self.pwinp if password else self.wdinp
 		while True:
@@ -54,6 +82,15 @@ class Client:
 				return r
 	
 	def send_username(self):
+		'''
+		Function that sends the username to the server
+		
+		Accounts for possibly already used usernames, being new, etc.
+		
+		Returns
+		-------
+		str, the username
+		'''
 		# Prompt for username
 		charlist = [chr(c) for c in range(128) if chr(c).isalnum()]
 		print('Enter username:')
@@ -96,7 +133,16 @@ class Client:
 			raise Exception('Something went wrong.')
 		return username
 	
-	def authenticate(self, debug=False):
+	def authenticate(self):
+		'''
+		Runs the authentication protocol with the server
+		
+		See the crypto package
+		
+		Returns
+		-------
+		bool, if the authentication was successful
+		'''
 		# Client proves first
 		print('[ Verifying client ]')
 		prover = Prover(self.server, secret=self.secret)
@@ -118,6 +164,11 @@ class Client:
 		return check and self_check
 	
 	def init_pwds(self):
+		'''
+		Initiates the password system and sets up salts
+		
+		Sets up the cipher to encrypt passwords and hasher for names
+		'''
 		# Extract password
 		password = ''; confirm = 'unequal'
 		# Password has to confirm because this is master
@@ -144,6 +195,11 @@ class Client:
 		self.hasher = Hasher(salts[self.username]['nm'])
 	
 	def run_pwds(self):
+		'''
+		Runs the password exchange protocol
+		
+		Asks the server for the password and runs decryption, unpacking manually
+		'''
 		# Wait for the server to be ready
 		assert self.server.recv() == 'Ready.'
 		# User selects a choice
@@ -188,6 +244,9 @@ class Client:
 		self.server.send('Done.')
 	
 	def run(self):
+		'''
+		Runs the entire program, in sequence
+		'''
 		# Get the username; we don't use it anywhere, really
 		self.username = self.send_username()
 		# Authentication protocol
@@ -206,5 +265,7 @@ class Client:
 				break
 
 if __name__ == "__main__":
-	client = Client(host, port)
+	HOST = 'localhost'
+	PORT = 373
+	client = Client(HOST, PORT)
 	client.run()
