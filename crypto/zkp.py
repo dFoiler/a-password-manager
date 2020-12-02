@@ -1,5 +1,3 @@
-''' Zero-knowledge proof code '''
-
 # NIST safe prime; 2048-bit MODP group
 
 p = '''      FFFFFFFF FFFFFFFF C90FDAA2 2168C234 C4C6628B 80DC1CD1
@@ -20,20 +18,36 @@ g = 2
 import os		# urandom
 import binascii		# binascii
 
-def random(byte: int):
+def random(byte):
+	'''
+	Parameters
+	----------
+	byte : int
+		Number of bytes to randomly generate
+	
+	Returns
+	-------
+	Bytes randomly generated from urandom
+	'''
 	return int(binascii.hexlify(os.urandom(byte)), 16)
 
 ROUNDS = 256
 
 # This is the DH zero-knowledge proof
 class Prover:
-	# prover is a socket
-	# Pass in secret as an integer
+	''' Class to do the proving '''
 	def __init__(self, verifier, secret=None):
+		'''
+		Parameters
+		----------
+		verifier : socket
+			Socket of the verifier to communicate with
+		secret : int
+			Integer value of the secret
+		'''
 		if secret == None:
 			print('[ Generating secret ]')
-			secret = binascii.hexlify(os.urandom(256))
-			secret = int(secret, 16)
+			secret = random(256)
 		self.secret = secret
 		self.token = pow(g, self.secret, p)
 		self.verifier = verifier
@@ -41,6 +55,9 @@ class Prover:
 		assert isinstance(self.secret, int)
 	
 	def round(self):
+		'''
+		Runs a round of the Diffie-Hellman zero-knowledge proof
+		'''
 		# Generate random number
 		r = random(256)
 		# Send g^r
@@ -59,15 +76,28 @@ class Prover:
 		self.verifier.send(hex(evidence)[2:])
 	
 	def run(self, rounds):
+		'''
+		Parameters
+		----------
+		rounds : int
+			Number of rounds of the ZKP to run
+		'''
 		for r in range(rounds):
 			print('[ Round', r, ']\033[F')
 			self.round()
 		print('[ Finished rounds ]')
 
 class Verifier:
-	# verifier is a socket
-	# Pass in token as an integer
+	''' Class to do the verifying '''
 	def __init__(self, prover, token):
+		'''
+		Parameters
+		----------
+		prover : soket
+			Socket to communicate with
+		token : int
+			Integer value of the token for the ZKP
+		'''
 		self.prover = prover
 		self.token = token
 		# This is kind of an annoying thing
@@ -75,6 +105,16 @@ class Verifier:
 	
 	# choice = 'r' means send r, choice = 'x' means send (x+r) % (p-1)
 	def round(self, choice):
+		'''
+		Parameters
+		----------
+		choice : str
+			String determining to get r or r+x
+		
+		Returns
+		-------
+		Boolean, true iff the evidence matches the requested
+		'''
 		C = int(self.prover.recv(), 16)
 		# Send our choice
 		self.prover.send(choice)
@@ -89,6 +129,16 @@ class Verifier:
 			raise Exception('Invalid choice: '+choice.decode())
 	
 	def run(self, rounds):
+		'''
+		Parameters
+		----------
+		rounds : int
+			Number of rounds of the ZKP to run
+		
+		Returns
+		-------
+		Boolean, true iff the prover passed all rounds
+		'''
 		# Run all rounds
 		ret = True
 		for r in range(rounds):
