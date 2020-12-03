@@ -2,6 +2,7 @@ import binascii 		# hexlify
 import json			# load, dumps
 import os			# urandom
 import socket			# socket
+import sqlite3 as sql		# sqlite3
 import string			# printable
 
 # local imports
@@ -30,14 +31,19 @@ class Server:
 		# Set up connection
 		self.server = JASocket(host, port, is_server=True, queuelength=queuelength)
 		# Gather user tokens
-		self.user_tokens = loadfile(PATH+'client_tokens.txt', default={})
 		# Gather own secret
 		secret = binascii.hexlify(os.urandom(256)).decode()
 		self.secret = loadfile(PATH+'secret.txt', default={'secret':secret})
 		self.secret = int(self.secret['secret'], 16)
 		self.token = pow(g, self.secret, p)
 		# Get user passwords
-		self.user_pwds = loadfile(PATH+'client_pwds.txt', default={})
+		self.user_conn = sql.connect('users.db')
+		self.user_conn.row_factory = sql.Row
+		self.user_cursor = self.user_conn.cursor()
+		try:
+			self.user_cursor.execute('''SELECT 1 FROM users''')
+		except sql.OperationalError:
+			self.user_cursor.execute('''CREATE TABLE users (username,pwname,pw)''')
 	
 	def get_username(self, client):
 		'''
@@ -62,7 +68,10 @@ class Server:
 		else:
 			raise Exception('Corrupted username: ' + str(data))
 		# Is this a new user?
-		if username in self.user_tokens:
+		self.user_cursor.execute('''SELECT * FROM users
+			WHERE username=? AND pwname=?''', (username,'token'))
+		rows = self.user_cursor.fetchall()
+		if len(rows) > 0:
 			# If user was new, recurse
 			if new_user:
 				client.send('Username taken.')
@@ -70,33 +79,27 @@ class Server:
 			# Else proceed normally
 			print('[ Found user ]')
 			client.send('Found user.')
+			client.token = rows[0]['pw']
 		else:
 			print('[ New user ]')
 			# Get user token
 			client.send('New user. Send token.')
-			token = client.recv()
-			print('[ Token:', token, ']')
-			self.user_tokens[username] = token
-			writefile(PATH+'client_tokens.txt', self.user_tokens)
-			# Send our token
+			client.token = client.recv()
+			print('[ Token:', client.token, ']')
+			self.user_cursor.execute('''INSERT INTO users VALUES(?,?,?)''',
+				(username, 'token', client.token))
+			self.user_conn.commit()
 			client.send(hex(self.token)[2:])
-		# Check if the username has passwords
-		if username not in self.user_pwds:
-			self.user_pwds[username] = {}
-			with open(PATH+'client_pwds.txt','w') as f:
-				f.write(json.dumps(self.user_pwds))
-				f.close()
+		client.token = int(client.token, 16)
 		return username
 	
-	def authenticate(self, client, token):
+	def authenticate(self, client):
 		'''
 		Runs the authentication protocol with the client; see crypto
 		Parameters
 		----------
 		client : socket
 			Socket connection of the client
-		token : str
-			Hex string givig the token of the client
 		
 		Returns
 		-------
@@ -104,7 +107,7 @@ class Server:
 		'''
 		# Client proves first
 		print('[ Verifying client ]')
-		verifier = Verifier(client,token)
+		verifier = Verifier(client,client.token)
 		check = verifier.run(256)
 		# Server proves second
 		print('[ Verifying server ]')
@@ -137,26 +140,35 @@ class Server:
 		username : str
 			Username of the client
 		'''
+		# TODO: Locally load the passwords here to use more easily?
 		client.send('Ready.')
 		choice = client.recv()
 		client.send('Which?')
-		which = client.recv()
+		pwname = client.recv()
+		self.user_cursor.execute('''SELECT * FROM users
+			WHERE username=? AND pwname=?''', (username,pwname))
+		pws = self.user_cursor.fetchall()
 		# Retrieve
 		if choice == 'r':
-			print('[ Retrieving',which,']')
-			if which in self.user_pwds[username]:
-				client.send(self.user_pwds[username][which])
+			print('[ Retrieving',pwname,']')
+			if len(pws) > 0:
+				client.send(pws[0]['pw'])
 				print('[ Found ]')
 			else:
 				client.send('[ Password not found ]')
 				print('[ Not found ]')
 		# Store
 		elif choice == 's':
-			print('[ Storing to',which,']')
+			print('[ Storing to',pwname,']')
 			client.send('To?')
-			replacement = client.recv()
-			self.user_pwds[username][which] = replacement
-			writefile(PATH+'client_pwds.txt', self.user_pwds)
+			pw = client.recv()
+			if len(pws) > 0:
+				self.user_cursor.execute('''UPDATE users SET pw=?
+					WHERE username=? AND pwname=?''', (pw,username,pwname))
+			else:
+				self.user_cursor.execute('''INSERT INTO users
+					VALUES(?,?,?)''', (username,pwname,pw))
+			self.user_conn.commit()
 		else:
 			client.send('Invalid.')
 		assert client.recv() == 'Done.'
@@ -176,9 +188,10 @@ class Server:
 		username = self.get_username(client)
 		print('[', addr[0], 'is', username, ']')
 		# Run the authentication protocol
-		user_token = int(self.user_tokens[username], 16)
+		'''user_token = int(self.user_tokens[username], 16)'''
 		print('[ Authenticating', addr[0], ']')
-		authenticated = self.authenticate(client, user_token)
+		'''authenticated = self.authenticate(client, user_token)'''
+		authenticated = self.authenticate(client)
 		print('[ Running ]')
 		# Run password protocol
 		while True:
