@@ -94,6 +94,7 @@ class Server:
 	def authenticate(self, client):
 		'''
 		Runs the authentication protocol with the client; see crypto
+		
 		Parameters
 		----------
 		client : socket
@@ -158,6 +159,7 @@ class Server:
 			print('[ Storing to',pwname,']')
 			client.send('To?')
 			pw = client.recv()
+			# TODO: Move this logic into SQL
 			if len(pws) > 0:
 				self.user_cursor.execute('''UPDATE users SET pw=?
 					WHERE username=? AND pwname=?''', (pw,client.username,pwname))
