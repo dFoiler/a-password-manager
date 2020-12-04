@@ -5,13 +5,40 @@ import socket		# socket
 import string		# printable
 
 class JASocket:
+	''' This is a simple socket wrapper class '''
 	def is_printable(s):
+		'''
+		Determines if s contains printable characters
+		
+		Parameters
+		----------
+		s : str
+			String to test
+		
+		Returns
+		-------
+		bool, true iff s is printable
+		'''
 		for c in s:
 			if c not in string.printable:
 				return False
 		return True
 	
 	def __init__(self, host, port, is_server=False, queuelength=5, sd=None):
+		'''
+		Parameters
+		----------
+		host : str
+			Name of host to connect to
+		port : str
+			Name of port of host to connect to
+		is_server : bool, optional
+			Whether or nor this is a server
+		queuelength : int, optional
+			Length of the queue
+		sd : socket
+			Socket to wrap around if provided
+		'''
 		self.is_server = is_server
 		# Pass in a socket through client
 		if sd:
@@ -25,15 +52,24 @@ class JASocket:
 			self.socket.bind((host, port))
 			self.socket.listen(queuelength)
 	
-	# Accept connections
 	def accept(self):
+		'''
+		Function to accept connections
+		'''
 		if not self.is_server:
 			raise Exception('client cannot accept')
 		client,addr = self.socket.accept()
 		return JASocket(None, None, sd=client), addr
 	
-	# Input a string
-	def send(self, message: str):
+	def send(self, message):
+		'''
+		Function sending along the socket
+		
+		Parameters
+		----------
+		message : str
+			Message to send
+		'''
 		if not isinstance(message, str):
 			raise TypeError('can only send strings')
 		if not JASocket.is_printable(message):
@@ -42,13 +78,21 @@ class JASocket:
 			raise Exception('message too long')
 		self.socket.sendall(message.encode())
 	
-	# Returns a string
 	def recv(self):
+		'''
+		Function to receive from the socket
+		
+		Returns
+		-------
+		str, the first 4096 characters of the received message
+		'''
 		message = self.socket.recv(4096).decode()
 		if not JASocket.is_printable(message):
 			raise Exception('message corrupted')
 		return message
 	
-	# Closes
 	def close(self):
+		'''
+		Function to close the connection
+		'''
 		self.socket.close()
