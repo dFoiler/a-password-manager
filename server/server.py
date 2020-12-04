@@ -40,10 +40,7 @@ class Server:
 		self.user_conn = sql.connect('users.db')
 		self.user_conn.row_factory = sql.Row
 		self.user_cursor = self.user_conn.cursor()
-		try:
-			self.user_cursor.execute('''SELECT 1 FROM users''')
-		except sql.OperationalError:
-			self.user_cursor.execute('''CREATE TABLE users (username,pwname,pw)''')
+		self.user_cursor.execute('''CREATE TABLE IF NOT EXISTS users (username,pwname,pw)''')
 	
 	def get_username(self, client):
 		'''
@@ -91,6 +88,7 @@ class Server:
 			self.user_conn.commit()
 			client.send(hex(self.token)[2:])
 		client.token = int(client.token, 16)
+		client.username = username
 		return username
 	
 	def authenticate(self, client):
@@ -129,7 +127,7 @@ class Server:
 				raise Exception('server failed authentication')
 		return check and self_check
 	
-	def run_pwds(self, client, username):
+	def run_pwds(self, client):
 		'''
 		Runs the password exchange protocol
 		
@@ -137,8 +135,6 @@ class Server:
 		----------
 		client : socket
 			Socket connection of the client
-		username : str
-			Username of the client
 		'''
 		# TODO: Locally load the passwords here to use more easily?
 		client.send('Ready.')
@@ -146,7 +142,7 @@ class Server:
 		client.send('Which?')
 		pwname = client.recv()
 		self.user_cursor.execute('''SELECT * FROM users
-			WHERE username=? AND pwname=?''', (username,pwname))
+			WHERE username=? AND pwname=?''', (client.username,pwname))
 		pws = self.user_cursor.fetchall()
 		# Retrieve
 		if choice == 'r':
@@ -164,10 +160,10 @@ class Server:
 			pw = client.recv()
 			if len(pws) > 0:
 				self.user_cursor.execute('''UPDATE users SET pw=?
-					WHERE username=? AND pwname=?''', (pw,username,pwname))
+					WHERE username=? AND pwname=?''', (pw,client.username,pwname))
 			else:
 				self.user_cursor.execute('''INSERT INTO users
-					VALUES(?,?,?)''', (username,pwname,pw))
+					VALUES(?,?,?)''', (client.username,pwname,pw))
 			self.user_conn.commit()
 		else:
 			client.send('Invalid.')
@@ -188,14 +184,12 @@ class Server:
 		username = self.get_username(client)
 		print('[', addr[0], 'is', username, ']')
 		# Run the authentication protocol
-		'''user_token = int(self.user_tokens[username], 16)'''
 		print('[ Authenticating', addr[0], ']')
-		'''authenticated = self.authenticate(client, user_token)'''
 		authenticated = self.authenticate(client)
 		print('[ Running ]')
 		# Run password protocol
 		while True:
-			self.run_pwds(client, username)
+			self.run_pwds(client)
 	
 	def run(self):
 		'''
