@@ -3,6 +3,7 @@ import getpass			# getpass
 import json			# loads, dumps
 import os			# urandom
 import socket			# socket
+import sqlite3 as sql		# sqlite3
 import string			# printable
 
 # local imports
@@ -33,13 +34,22 @@ class Client:
 			Function to take passwords
 		'''
 		# Set up connection
+		self.host = host
 		self.server = JASocket(host, port)
+		# Set up database
+		self.db_conn = sql.connect(PATH+'database.db')
+		self.db_conn.row_factory = sql.Row
+		self.db_cursor = self.db_conn.cursor()
+		self.db_cursor.execute('''CREATE TABLE IF NOT EXISTS servers (host,token)''')
+		self.db_cursor.execute('''CREATE TABLE IF NOT EXISTS users
+			(username,secret,nmsalt,pwsalt)''')
 		# Get server's token
-		self.server_tokens = loadfile(PATH+'server_tokens.txt')
-		if host not in self.server_tokens:
-			self.server_tokens[host] = '-1'
-			writefile(PATH+'server_tokens.txt', self.server_tokens)
-		self.server_token = int(self.server_tokens[host], 16)
+		self.db_cursor.execute('''SELECT * FROM servers WHERE host=?''', (host,))
+		rows = self.db_cursor.fetchall()
+		if len(rows) == 0:
+			self.server_token = -1
+		else:
+			self.server_token = int(rows[0]['token'], 16)
 		# Set input functions
 		self.wdinp = wdinp	# word input
 		self.pwinp = pwinp	# password input
@@ -97,9 +107,11 @@ class Client:
 		username = self.get_input(minlength=1, maxlength=4000, options=charlist)
 		username = username.strip()
 		# Get own secret now that we know our username
-		self.secrets = loadfile(PATH+'secrets.txt')
+		self.db_cursor.execute('''SELECT * FROM users
+			WHERE username=?''', (username,))
+		rows = self.db_cursor.fetchall()
 		# Tell the user that we're new
-		new_user = username not in self.secrets
+		new_user = (len(rows) == 0)
 		# We'll want this later
 		self.new_user = new_user
 		if new_user:
@@ -110,21 +122,34 @@ class Client:
 		# We're already in the system
 		if response == 'Found user.' and not new_user:
 			print('[ Found user ]')
-			self.secret = int(self.secrets[username], 16)
+			# Set up user with secret, token, and salts
+			self.secret = int(rows[0]['secret'], 16)
 			self.token = pow(g, self.secret, p)
+			self.nm_salt = rows[0]['nmsalt']
+			self.pw_salt = rows[0]['pwsalt']
 		# Server recognizes that we're new
 		elif response == 'New user. Send token.' and new_user:
-			# Generate secret and token
-			self.secrets[username] = binascii.hexlify(os.urandom(256)).decode()
-			writefile(PATH+'secrets.txt', self.secrets)
-			self.secret = int(self.secrets[username], 16)
+			# Set up user with secret, token, and salts
+			secret = binascii.hexlify(os.urandom(256)).decode()
+			self.nm_salt = binascii.hexlify(os.urandom(16)).decode()
+			self.pw_salt = binascii.hexlify(os.urandom(16)).decode()
+			self.db_cursor.execute('''INSERT INTO users VALUES(?,?,?,?)''',
+				(username,secret,self.pw_salt,self.nm_salt))
+			self.secret = int(secret, 16)
 			self.token = pow(g, self.secret, p)
 			print('[ New user ]\n[ Sending token ]')
 			self.server.send(hex(self.token)[2:])
 			# Receive the server token
-			self.server_tokens[host] = self.server.recv()
-			writefile(PATH+'server_tokens.txt',self.server_tokens)
-			self.server_token = int(self.server_tokens[host], 16)
+			server_token = self.server.recv()
+			# Update database if needed
+			if self.server_token == -1:
+				self.db_cursor.execute('''INSERT INTO servers VALUES(?,?)''',
+					(self.host, server_token))
+				self.server_token = int(server_token, 16)
+			# If we have it, it should match
+			else:
+				assert self.server_token == int(server_token, 16)
+			self.db_conn.commit()
 		# We're new, but server has us on file; recurse
 		elif response == 'Username taken.' and new_user:
 			print('[ Username taken ]')
@@ -181,18 +206,11 @@ class Client:
 				options=string.printable, password=True)
 			if password != confirm:
 				print('[ Passwords do not match ]')
-		# Get our salts
-		salts = loadfile(PATH+'salts.txt')
-		if self.username not in salts:
-			salts[self.username] = {
-				'pw':binascii.hexlify(os.urandom(16)).decode(),
-				'nm':binascii.hexlify(os.urandom(16)).decode()
-			}
-			writefile(PATH+'salts.txt', salts)
+		# We already have our salts from when we set up the user
 		# Initialize ciphers for names and passwords
-		self.cipher = AES(password, salts[self.username]['pw'])
+		self.cipher = AES(password, self.nm_salt)
 		# We have a different salt, just in case
-		self.hasher = Hasher(salts[self.username]['nm'])
+		self.hasher = Hasher(self.pw_salt)
 	
 	def run_pwds(self):
 		'''

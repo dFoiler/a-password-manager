@@ -37,7 +37,7 @@ class Server:
 		self.secret = int(self.secret['secret'], 16)
 		self.token = pow(g, self.secret, p)
 		# Get user passwords
-		self.user_conn = sql.connect('users.db')
+		self.user_conn = sql.connect(PATH+'users.db')
 		self.user_conn.row_factory = sql.Row
 		self.user_cursor = self.user_conn.cursor()
 		self.user_cursor.execute('''CREATE TABLE IF NOT EXISTS users (username,pwname,pw)''')
