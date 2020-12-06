@@ -5,7 +5,19 @@ import os		# urandom
 ''' Some helper functions '''
 
 # Tests if a string is printable with string.printable
-def is_printable(s: str):
+def is_printable(s):
+	'''
+	Determines if a string is printable
+	
+	Parameters
+	----------
+	s : str
+		String to determine printability of
+	
+	Returns
+	-------
+	Boolean, true iff s is printable
+	'''
 	# I don't want to have to deal with bytes-related problems
 	if not isinstance(s, str):
 		raise TypeError('is_printable takes str')
@@ -15,39 +27,21 @@ def is_printable(s: str):
 			return False
 	return True
 
-# Loads a dictionary from a file
-def loadfile(name: str, default: dict={}):
-	# No bytes-related stuff please
-	if not isinstance(name, str):
-		raise TypeError('loadfile takes str')
-	# Check if the file exists
-	ret = default
-	try:
-		f = open(name, 'r')
-		ret = json.load(f)
-		f.close()
-	except FileNotFoundError:
-		# File doesn't exist, so write to it
-		f = open(name, 'w')
-		f.write(json.dumps(default))
-		f.close()
-	return ret
-
-# Writes a dictionary to a file
-def writefile(name: str, data: dict):
-	# Open and write
-	if not isinstance(name, str):
-		raise TypeError('writefile takes str')
-	if not isinstance(data, dict):
-		raise TypeError('writefile takes dict')
-	f = open(name, 'w')
-	f.write(json.dumps(data))
-	f.close()
-
 ''' Random passwords '''
 
-# Gets a cryptographically secure random number from urandom
-def get_rand_int(upper: int):
+def get_rand_int(upper):
+	'''
+	Gets a cryptographically secure random integer from urandom
+	
+	Parameters
+	----------
+	upper : int
+		Upper bound for the random integer
+	
+	Returns
+	-------
+	A random integer in [0, upper)
+	'''
 	# We add in 30 extra bytes so that the mod is "uniform"
 	num_bytes = upper.bit_length()//8 + 30
 	rand_bytes = os.urandom(num_bytes)
@@ -59,8 +53,21 @@ def get_rand_int(upper: int):
 		rand += b
 	return rand % upper
 
-# Get a random word, for passwords
 def get_rand_word(num_chars: int, char_list: list):
+	'''
+	Gets a cryptographically secure random word
+	
+	Parameters
+	----------
+	num_chars : int
+		Number of characters in the word
+	char_list : list
+		List of characters to make the word from
+	
+	Returns
+	-------
+	A randomly generated string length num_chars from the char_list
+	'''
 	# Get random integers to forom our word from the char_list
 	r = [char_list[get_rand_int(len(char_list))]
 		for _ in range(num_chars)]

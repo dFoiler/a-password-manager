@@ -32,9 +32,16 @@ class Server:
 		self.server = JASocket(host, port, is_server=True, queuelength=queuelength)
 		# Gather user tokens
 		# Gather own secret
-		secret = binascii.hexlify(os.urandom(256)).decode()
-		self.secret = loadfile(PATH+'secret.txt', default={'secret':secret})
-		self.secret = int(self.secret['secret'], 16)
+		self.secret = binascii.hexlify(os.urandom(256)).decode()
+		try:
+			f = open(PATH+'secret.txt')
+			self.secret = f.read()
+			f.close()
+		except FileNotFoundError:
+			f = open(PATH+'secret.txt','w')
+			f.write(self.secret)
+			f.close()
+		self.secret = int(self.secret, 16)
 		self.token = pow(g, self.secret, p)
 		# Get user passwords
 		self.user_conn = sql.connect(PATH+'users.db')
