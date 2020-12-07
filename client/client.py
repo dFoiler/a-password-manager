@@ -99,7 +99,7 @@ class Client:
 		
 		Returns
 		-------
-		str, the username
+		list, possible users with their information
 		'''
 		# Prompt for username
 		charlist = [chr(c) for c in range(128) if chr(c).isalnum()]
@@ -109,32 +109,52 @@ class Client:
 		# Get own secret now that we know our username
 		self.db_cursor.execute('''SELECT * FROM users
 			WHERE username=?''', (username,))
-		rows = self.db_cursor.fetchall()
+		possible_users = self.db_cursor.fetchall()
 		# Tell the user that we're new
-		new_user = (len(rows) == 0)
-		# We'll want this later
-		self.new_user = new_user
+		new_user = (len(possible_users) == 0)
 		if new_user:
 			print('[ New user ]')
 		print('[ Sending username "' + username + '" to server ]')
 		self.server.send(('New:' if new_user else 'Old:')+username)
 		response = self.server.recv()
+		# We're new, but the server has us on file: recurse
+		if response == 'Username taken.' and new_user:
+			print('[ Username taken ]')
+			return self.send_username()
+		# Check if our response makes sense
+		elif not(response == 'Found user.' and not new_user) \
+			and not(response == 'New user. Send token.' and new_user):
+			raise Exception('Something went wrong')
+		# Set for safekeeping
+		self.username = username
+		return possible_users
+	
+	def init_user(self, possible_users):
+		'''
+		Initiates user data (secret, token, and salts)
+		
+		Parameters
+		----------
+		possible_users : list
+			List storing information for who we might be
+		'''
+		print('[ Initiating ]')
 		# We're already in the system
-		if response == 'Found user.' and not new_user:
+		if len(possible_users) > 0:
 			print('[ Found user ]')
 			# Set up user with secret, token, and salts
-			self.secret = int(rows[0]['secret'], 16)
+			self.secret = int(possible_users[0]['secret'], 16)
 			self.token = pow(g, self.secret, p)
-			self.nm_salt = rows[0]['nmsalt']
-			self.pw_salt = rows[0]['pwsalt']
-		# Server recognizes that we're new
-		elif response == 'New user. Send token.' and new_user:
+			self.nm_salt = possible_users[0]['nmsalt']
+			self.pw_salt = possible_users[0]['pwsalt']
+		# We have to set everything up
+		else:
 			# Set up user with secret, token, and salts
 			secret = binascii.hexlify(os.urandom(256)).decode()
 			self.nm_salt = binascii.hexlify(os.urandom(16)).decode()
 			self.pw_salt = binascii.hexlify(os.urandom(16)).decode()
 			self.db_cursor.execute('''INSERT INTO users VALUES(?,?,?,?)''',
-				(username,secret,self.pw_salt,self.nm_salt))
+				(self.username,secret,self.nm_salt,self.pw_salt))
 			self.secret = int(secret, 16)
 			self.token = pow(g, self.secret, p)
 			print('[ New user ]\n[ Sending token ]')
@@ -150,13 +170,6 @@ class Client:
 			else:
 				assert self.server_token == int(server_token, 16)
 			self.db_conn.commit()
-		# We're new, but server has us on file; recurse
-		elif response == 'Username taken.' and new_user:
-			print('[ Username taken ]')
-			return self.send_username()
-		else:
-			raise Exception('Something went wrong.')
-		return username
 	
 	def authenticate(self):
 		'''
@@ -266,7 +279,9 @@ class Client:
 		Runs the entire program, in sequence
 		'''
 		# Get the username; we don't use it anywhere, really
-		self.username = self.send_username()
+		possible_users = self.send_username()
+		# Quietly intiate the user; we carry some locals
+		self.init_user(possible_users)
 		# Authentication protocol
 		print('[ Authenticating ]')
 		authenticated = self.authenticate()
