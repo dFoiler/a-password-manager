@@ -30,7 +30,6 @@ class Server:
 		'''
 		# Set up connection
 		self.server = JASocket(host, port, is_server=True, queuelength=queuelength)
-		# Gather user tokens
 		# Gather own secret
 		self.secret = binascii.hexlify(os.urandom(256)).decode()
 		try:
@@ -135,6 +134,29 @@ class Server:
 				raise Exception('server failed authentication')
 		return check and self_check
 	
+	def init_pwds(self, client):
+		'''
+		Loads the client's passwords locally for ease of use
+		
+		Parameters
+		----------
+		client : socket
+			Socket connection of the client
+		
+		Returns
+		-------
+		dict containing passwords keyed by password name
+		'''
+		# Push into a list of rows
+		self.user_cursor.execute('''SELECT * FROM users WHERE username=?''',
+			(client.username,))
+		rows = self.user_cursor.fetchall()
+		# Push into dictionary for ease of use
+		pwds = {}
+		for row in rows:
+			pwds[row['pwname']] = row['pw']
+		return pwds
+	
 	def run_pwds(self, client):
 		'''
 		Runs the password exchange protocol
@@ -144,19 +166,15 @@ class Server:
 		client : socket
 			Socket connection of the client
 		'''
-		# TODO: Locally load the passwords here to use more easily?
 		client.send('Ready.')
 		choice = client.recv()
 		client.send('Which?')
 		pwname = client.recv()
-		self.user_cursor.execute('''SELECT * FROM users
-			WHERE username=? AND pwname=?''', (client.username,pwname))
-		pws = self.user_cursor.fetchall()
 		# Retrieve
 		if choice == 'r':
 			print('[ Retrieving',pwname,']')
-			if len(pws) > 0:
-				client.send(pws[0]['pw'])
+			if pwname in client.pwds:
+				client.send(client.pwds[pwname])
 				print('[ Found ]')
 			else:
 				client.send('[ Password not found ]')
@@ -166,14 +184,16 @@ class Server:
 			print('[ Storing to',pwname,']')
 			client.send('To?')
 			pw = client.recv()
-			# TODO: Move this logic into SQL
-			if len(pws) > 0:
+			# Moving this logic to SQL won't make it faster, so we don't bother
+			if pwname in client.pwds:
 				self.user_cursor.execute('''UPDATE users SET pw=?
 					WHERE username=? AND pwname=?''', (pw,client.username,pwname))
 			else:
-				self.user_cursor.execute('''INSERT INTO users
-					VALUES(?,?,?)''', (client.username,pwname,pw))
+				self.user_cursor.execute('''INSERT INTO users VALUES(?,?,?)''',
+					(client.username,pwname,pw))
 			self.user_conn.commit()
+			# Also update locally
+			client.pwds[pwname] = pw
 		else:
 			client.send('Invalid.')
 		assert client.recv() == 'Done.'
@@ -196,6 +216,8 @@ class Server:
 		print('[ Authenticating', addr[0], ']')
 		authenticated = self.authenticate(client)
 		print('[ Running ]')
+		# Load passwords locally
+		client.pwds = self.init_pwds(client)
 		# Run password protocol
 		while True:
 			self.run_pwds(client)
