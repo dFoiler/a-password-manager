@@ -77,16 +77,16 @@ class Server:
 		if len(rows) > 0:
 			# If user was new, recurse
 			if new_user:
-				client.send('Username taken.')
+				client.send('[ Username taken ]')
 				return self.get_username(client)
 			# Else proceed normally
 			print('[ Found user ]')
-			client.send('Found user.')
+			client.send('[ Found user ]')
 			client.token = rows[0]['pw']
 		else:
 			print('[ New user ]')
 			# Get user token
-			client.send('New user. Send token.')
+			client.send('[ New user ][ Send token ]')
 			client.token = client.recv()
 			print('[ Token:', client.token, ']')
 			self.user_cursor.execute('''INSERT INTO users VALUES(?,?,?)''',
@@ -120,11 +120,11 @@ class Server:
 		prover.run(256)
 		# Run checks
 		if check:
-			client.send('Authenticated.')
+			client.send('[ Authenticated ]')
 		else:
-			client.send('Failed.')
+			client.send('[ Failed ]')
 		self_check = client.recv().strip()
-		self_check = (self_check == 'Authenticated.')
+		self_check = (self_check == '[ Authenticated ]')
 		# Failure
 		if not check or not self_check:
 			client.close()
@@ -166,9 +166,9 @@ class Server:
 		client : socket
 			Socket connection of the client
 		'''
-		client.send('Ready.')
+		client.send('[ Ready ]')
 		choice = client.recv()
-		client.send('Which?')
+		client.send('[ Which? ]')
 		pwname = client.recv()
 		# Retrieve
 		if choice == 'r':
@@ -182,7 +182,7 @@ class Server:
 		# Store
 		elif choice == 's':
 			print('[ Storing to',pwname,']')
-			client.send('To?')
+			client.send('[ To? ]')
 			pw = client.recv()
 			# Moving this logic to SQL won't make it faster, so we don't bother
 			if pwname in client.pwds:
@@ -195,8 +195,8 @@ class Server:
 			# Also update locally
 			client.pwds[pwname] = pw
 		else:
-			client.send('Invalid.')
-		assert client.recv() == 'Done.'
+			client.send('[ Invalid ]')
+		assert client.recv() == '[ Done ]'
 	
 	def run_client(self, client, addr):
 		'''

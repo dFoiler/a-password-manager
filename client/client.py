@@ -118,12 +118,12 @@ class Client:
 		self.server.send(('New:' if new_user else 'Old:')+username)
 		response = self.server.recv()
 		# We're new, but the server has us on file: recurse
-		if response == 'Username taken.' and new_user:
+		if response == '[ Username taken ]' and new_user:
 			print('[ Username taken ]')
 			return self.send_username()
 		# Check if our response makes sense
-		elif not(response == 'Found user.' and not new_user) \
-			and not(response == 'New user. Send token.' and new_user):
+		elif not(response == '[ Found user ]' and not new_user) \
+			and not(response == '[ New user ][ Send token ]' and new_user):
 			raise Exception('Something went wrong')
 		# Set for safekeeping
 		self.username = username
@@ -191,14 +191,14 @@ class Client:
 		check = verifier.run(256)
 		self_check = self.server.recv().strip()
 		# Checking
-		self_check = (self_check == 'Authenticated.')
+		self_check = (self_check == '[ Authenticated ]')
 		if self_check:
 			print('[ Verfifed client ]')
 		if check:
-			self.server.send('Authenticated.')
+			self.server.send('[ Authenticated ]')
 			print('[ Verified server ]')
 		else:
-			self.server.send('Failed.')
+			self.server.send('[ Failed ]')
 		return check and self_check
 	
 	def init_pwds(self):
@@ -232,14 +232,14 @@ class Client:
 		Asks the server for the password and runs decryption, unpacking manually
 		'''
 		# Wait for the server to be ready
-		assert self.server.recv() == 'Ready.'
+		assert self.server.recv() == '[ Ready ]'
 		# User selects a choice
 		print('[R]etrieve or [S]tore')
 		choice = self.get_input(minlength=1, maxlength=1, options=['r','s','R','S'])
 		choice = choice.lower()
 		# Send and receive
 		self.server.send(choice)
-		assert self.server.recv() == 'Which?'
+		assert self.server.recv() == '[ Which? ]'
 		# Same rules as the choice hold here
 		print('Which password?')
 		nm = self.get_input(minlength=1, maxlength=4000)
@@ -258,7 +258,7 @@ class Client:
 				print('Password: "' + pw + '"')
 		# Storing
 		elif choice == 's':
-			assert self.server.recv() == 'To?'
+			assert self.server.recv() == '[ To? ]'
 			# Ask use about randomizing passwords
 			print('[R]andom or [E]nter?')
 			is_random = self.get_input(minlength=1, maxlength=1, options=['r','e','R','E'])
@@ -272,7 +272,7 @@ class Client:
 			# We include which as well here, to check for corruption
 			self.server.send(self.cipher.encrypt(nm+replacement))
 			print('[ Sent password "' + replacement + '" ]')
-		self.server.send('Done.')
+		self.server.send('[ Done ]')
 	
 	def run(self):
 		'''
